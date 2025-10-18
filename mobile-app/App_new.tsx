@@ -11,9 +11,6 @@ import {
   Alert,
   Platform
 } from 'react-native';
-import { Buffer } from 'buffer';
-global.Buffer = Buffer;
-
 import { MeasurementCard } from './MeasurementCard';
 import { scaleApi } from './api';
 import { bleService } from './bleService';
