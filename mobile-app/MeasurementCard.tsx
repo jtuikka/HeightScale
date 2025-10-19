@@ -1,17 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ScaleMeasurement } from './types';
+import { getUseMetric, formatHeight } from './utils/conversions';
+import { useTranslation } from './i18n/useTranslation';
 
 interface MeasurementCardProps {
   measurement: ScaleMeasurement | null;
 }
 
 export const MeasurementCard: React.FC<MeasurementCardProps> = ({ measurement }) => {
+  const { t } = useTranslation();
+  const [useMetric, setUseMetric] = useState(true);
+
+  useEffect(() => {
+    loadMetricSetting();
+  }, [measurement]);
+
+  const loadMetricSetting = async () => {
+    const metric = await getUseMetric();
+    setUseMetric(metric);
+  };
+
   if (!measurement) {
     return (
       <View style={styles.card}>
-        <Text style={styles.noDataText}>Ei mittaustuloksia</Text>
-        <Text style={styles.infoText}>Astu vaa'an päälle aloittaaksesi mittauksen</Text>
+        <Text style={styles.noDataText}>{t.noMeasurementData}</Text>
+        <Text style={styles.infoText}>{t.stepOnScale}</Text>
       </View>
     );
   }
@@ -21,28 +35,17 @@ export const MeasurementCard: React.FC<MeasurementCardProps> = ({ measurement })
     return date.toLocaleString('fi-FI');
   };
 
+  const heightFormatted = formatHeight(measurement.height, useMetric);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Viimeisin mittaus</Text>
+      <Text style={styles.title}>{t.latestMeasurement}</Text>
       <Text style={styles.timestamp}>{formatDate(measurement.timestamp)}</Text>
       
       <View style={styles.measurementContainer}>
         <View style={styles.measurementItem}>
-          <Text style={styles.label}>Paino</Text>
-          <Text style={styles.value}>{measurement.weight.toFixed(1)}</Text>
-          <Text style={styles.unit}>kg</Text>
-        </View>
-
-        <View style={styles.measurementItem}>
-          <Text style={styles.label}>Pituus</Text>
-          <Text style={styles.value}>{(measurement.height * 100).toFixed(0)}</Text>
-          <Text style={styles.unit}>cm</Text>
-        </View>
-
-        <View style={styles.measurementItem}>
-          <Text style={styles.label}>Impedanssi</Text>
-          <Text style={styles.value}>{measurement.impedance}</Text>
-          <Text style={styles.unit}>Ω</Text>
+          <Text style={styles.label}>{t.height}</Text>
+          <Text style={styles.value}>{heightFormatted}</Text>
         </View>
       </View>
     </View>
@@ -51,7 +54,7 @@ export const MeasurementCard: React.FC<MeasurementCardProps> = ({ measurement })
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#6a5acd', // Slate Blue violetti
     borderRadius: 16,
     padding: 24,
     margin: 16,
@@ -60,53 +63,52 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#ffffff', // Valkoinen - paras kontrasti
     marginBottom: 8,
   },
   timestamp: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '500',
+    color: '#f0e6ff', // Hyvin vaalea violetti
     marginBottom: 24,
   },
   measurementContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   measurementItem: {
     alignItems: 'center',
   },
   label: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f0e6ff', // Hyvin vaalea violetti - parempi kontrasti
+    marginBottom: 12,
   },
   value: {
-    fontSize: 32,
+    fontSize: 48,
     fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  unit: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
+    color: '#ffffff', // Valkoinen - paras kontrasti
   },
   noDataText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#999',
+    color: '#ffffff', // Valkoinen - paras kontrasti
     textAlign: 'center',
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#999',
+    fontWeight: '500',
+    color: '#f0e6ff', // Hyvin vaalea violetti
     textAlign: 'center',
   },
 });

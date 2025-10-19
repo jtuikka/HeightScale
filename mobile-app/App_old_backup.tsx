@@ -1,63 +1,36 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
 import HomeScreen from './screens/HomeScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import { translations, Language, Translations } from './i18n/translations';
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('en');
-  const [t, setT] = useState<Translations>(translations.en);
-
-  // Poll for language changes
-  useEffect(() => {
-    const checkLanguage = async () => {
-      const lang = await AsyncStorage.getItem('language');
-      if (lang && (lang === 'en' || lang === 'fi')) {
-        if (lang !== currentLanguage) {
-          setCurrentLanguage(lang);
-          setT(translations[lang]);
-        }
-      }
-    };
-    
-    checkLanguage();
-    const interval = setInterval(checkLanguage, 500);
-    return () => clearInterval(interval);
-  }, [currentLanguage]);
-
   return (
     <NavigationContainer>
       <StatusBar style="auto" />
       <Tab.Navigator
-        key={currentLanguage}
         screenOptions={{
-          tabBarActiveTintColor: '#e6e6fa', // Lavender
-          tabBarInactiveTintColor: '#9370db', // Medium Purple
+          tabBarActiveTintColor: '#2196F3',
+          tabBarInactiveTintColor: '#999',
           tabBarStyle: {
-            backgroundColor: '#2d2d5f', // Dark Violet (same as header)
-            borderTopWidth: 2,
-            borderTopColor: '#6a5acd', // Slate Blue
-            paddingBottom: 8,
-            paddingTop: 8,
-            height: 65,
+            backgroundColor: '#fff',
+            borderTopWidth: 1,
+            borderTopColor: '#e0e0e0',
+            paddingBottom: 5,
+            paddingTop: 5,
+            height: 60,
           },
           tabBarLabelStyle: {
             fontSize: 12,
             fontWeight: '600',
-            marginTop: -3,
-          },
-          tabBarIconStyle: {
-            marginTop: -5,
           },
           headerShown: false,
         }}
@@ -66,7 +39,7 @@ export default function App() {
           name="Home"
           component={HomeScreen}
           options={{
-            tabBarLabel: t.home,
+            tabBarLabel: 'Koti',
             tabBarIcon: ({ color, size }) => (
               <Text style={{ fontSize: size, color }}>🏠</Text>
             ),
@@ -76,7 +49,7 @@ export default function App() {
           name="History"
           component={HistoryScreen}
           options={{
-            tabBarLabel: t.history,
+            tabBarLabel: 'Historia',
             tabBarIcon: ({ color, size }) => (
               <Text style={{ fontSize: size, color }}>📊</Text>
             ),
@@ -86,7 +59,7 @@ export default function App() {
           name="Settings"
           component={SettingsScreen}
           options={{
-            tabBarLabel: t.settings,
+            tabBarLabel: 'Asetukset',
             tabBarIcon: ({ color, size }) => (
               <Text style={{ fontSize: size, color }}>⚙️</Text>
             ),

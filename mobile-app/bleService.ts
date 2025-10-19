@@ -2,10 +2,12 @@ import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { Buffer } from 'buffer';
 import { ScaleMeasurement } from './types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SCALE_ADDRESS = '0C:95:41:CB:23:FF';
 const BODY_COMPOSITION_SERVICE_UUID = '0000181b-0000-1000-8000-00805f9b34fb';
 const BODY_COMPOSITION_MEASUREMENT_UUID = '00002a9c-0000-1000-8000-00805f9b34fb';
+const SETTINGS_KEY = '@heightscale_settings';
 
 export class BLEService {
   private manager: BleManager;
@@ -66,12 +68,16 @@ export class BLEService {
   /**
    * Etsii Mi Body Composition Scale 2:n
    */
-  async findScale(timeoutMs: number = 10000): Promise<Device | null> {
+  async findScale(timeoutMs: number = 20000): Promise<Device | null> {
+    console.log('🔍 Starting BLE scan for scale:', SCALE_ADDRESS);
     return new Promise((resolve) => {
       let found = false;
+      let devicesFound = 0;
 
       this.scanTimeout = setTimeout(() => {
         if (!found) {
+          console.log('⏰ Scan timeout - scale not found');
+          console.log(`📱 Found ${devicesFound} BLE devices total`);
           this.manager.stopDeviceScan();
           resolve(null);
         }
@@ -79,20 +85,26 @@ export class BLEService {
 
       this.manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
-          console.error('Scan error:', error);
+          console.error('❌ Scan error:', error);
           this.manager.stopDeviceScan();
           resolve(null);
           return;
         }
 
-        if (device && device.id.toUpperCase() === SCALE_ADDRESS.toUpperCase()) {
-          found = true;
-          this.manager.stopDeviceScan();
-          if (this.scanTimeout) {
-            clearTimeout(this.scanTimeout);
+        if (device) {
+          devicesFound++;
+          console.log(`📡 Found device: ${device.id} (${device.name || 'unnamed'})`);
+          
+          if (device.id.toUpperCase() === SCALE_ADDRESS.toUpperCase()) {
+            console.log('✅ Scale found!');
+            found = true;
+            this.manager.stopDeviceScan();
+            if (this.scanTimeout) {
+              clearTimeout(this.scanTimeout);
+            }
+            console.log('Found scale:', device.name, device.id);
+            resolve(device);
           }
-          console.log('Found scale:', device.name, device.id);
-          resolve(device);
         }
       });
     });
@@ -103,18 +115,33 @@ export class BLEService {
    */
   async connect(): Promise<boolean> {
     try {
+      console.log('🔌 Starting connection process...');
+      
+      // Tarkista Bluetooth-tila ensin
+      const state = await this.manager.state();
+      console.log('📶 Bluetooth state:', state);
+      
+      if (state !== 'PoweredOn') {
+        console.log('⚠️ Bluetooth is not powered on!');
+        return false;
+      }
+      
       const device = await this.findScale();
       if (!device) {
-        console.log('Scale not found');
+        console.log('❌ Scale not found after scan');
         return false;
       }
 
+      console.log('🔗 Connecting to device...');
       this.device = await device.connect();
+      
+      console.log('🔍 Discovering services...');
       await this.device.discoverAllServicesAndCharacteristics();
-      console.log('Connected to scale');
+      
+      console.log('✅ Connected to scale successfully');
       return true;
     } catch (error) {
-      console.error('Connection error:', error);
+      console.error('❌ Connection error:', error);
       return false;
     }
   }
@@ -137,7 +164,7 @@ export class BLEService {
   /**
    * Parsii mittausdata vaa'alta
    */
-  private parseMeasurement(data: string): ScaleMeasurement | null {
+  private async parseMeasurement(data: string): Promise<ScaleMeasurement | null> {
     try {
       // Muunna base64 -> bytes
       const bytes = Buffer.from(data, 'base64');
@@ -158,8 +185,20 @@ export class BLEService {
       // Impedanssi: tavut 9-10 (little-endian)
       const impedance = bytes[9] + (bytes[10] << 8);
 
-      // Pituus lasketaan painosta (yksinkertainen estimaatti)
-      const height = Math.sqrt(weight / 21.0);
+      // Hae BMI asetuksista
+      let targetBMI = 21.0; // Oletus
+      try {
+        const settingsStr = await AsyncStorage.getItem(SETTINGS_KEY);
+        if (settingsStr) {
+          const settings = JSON.parse(settingsStr);
+          targetBMI = parseFloat(settings.targetBMI) || 21.0;
+        }
+      } catch (error) {
+        console.log('Could not load BMI from settings, using default 21');
+      }
+
+      // Pituus lasketaan painosta ja BMI:stä: height = sqrt(weight / BMI)
+      const height = Math.sqrt(weight / targetBMI);
 
       // Tarkista onko mittaus stabiloitunut (bitti 5 tavussa 1)
       const stabilized = (bytes[1] & 0x20) > 0;
@@ -169,6 +208,7 @@ export class BLEService {
         weight,
         impedance,
         height,
+        targetBMI,
         stabilized,
         byte1: bytes[1].toString(16)
       });
@@ -205,14 +245,14 @@ export class BLEService {
       await this.device.monitorCharacteristicForService(
         BODY_COMPOSITION_SERVICE_UUID,
         BODY_COMPOSITION_MEASUREMENT_UUID,
-        (error, characteristic) => {
+        async (error, characteristic) => {
           if (error) {
             console.error('Monitor error:', error);
             return;
           }
 
           if (characteristic?.value) {
-            const measurement = this.parseMeasurement(characteristic.value);
+            const measurement = await this.parseMeasurement(characteristic.value);
             if (measurement) {
               console.log('New measurement:', measurement);
               onMeasurement(measurement);
